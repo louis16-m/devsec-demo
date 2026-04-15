@@ -34,6 +34,24 @@ class AuthTests(TestCase):
         })
         self.assertEqual(response.status_code, 302)  # Redirect after login
 
+    def test_login_redirects_to_internal_next(self):
+        user = User.objects.create_user(username='testuser', password='testpass123')
+        self.client.login(username='testuser', password='testpass123')
+        target = reverse('louis16_m:profile')
+        response = self.client.post(reverse('louis16_m:login') + f'?next={target}', {
+            'username': 'testuser',
+            'password': 'testpass123'
+        })
+        self.assertRedirects(response, target)
+
+    def test_login_rejects_external_next_target(self):
+        User.objects.create_user(username='testuser', password='testpass123')
+        response = self.client.post(reverse('louis16_m:login') + '?next=http://evil.com', {
+            'username': 'testuser',
+            'password': 'testpass123'
+        })
+        self.assertRedirects(response, reverse('louis16_m:profile'))
+
     def test_profile_requires_login(self):
         response = self.client.get(reverse('louis16_m:profile'))
         self.assertEqual(response.status_code, 302)  # Redirect to login

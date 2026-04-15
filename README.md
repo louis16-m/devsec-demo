@@ -31,3 +31,9 @@ Custom AJAX endpoints for state-changing operations must include CSRF tokens to 
 The `update_profile_ajax` view updates user profile data via POST and requires a valid CSRF token in the `X-CSRFToken` header.
 The frontend JavaScript retrieves the CSRF token from the `csrftoken` cookie and includes it in AJAX requests.
 This ensures that even AJAX-driven forms are protected against CSRF attacks, maintaining the security of the application while preserving user experience.
+
+## Open Redirect Protection
+Authentication redirect targets are now validated before use.
+The login view accepts a `next` parameter only when it points to a safe internal URL on the same host.
+External or untrusted redirect targets are rejected and users are sent to the default profile page instead.
+This prevents attackers from abusing login redirect flows to send users to malicious destinations.

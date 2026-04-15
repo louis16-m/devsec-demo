@@ -2,6 +2,7 @@ from functools import wraps
 from datetime import timedelta
 
 from django.http import JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, PasswordChangeForm
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, User
@@ -9,6 +10,7 @@ from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from .models import LoginAttempt
 
@@ -46,6 +48,12 @@ def get_client_ip(request):
     if forwarded:
         return forwarded.split(',')[0].strip()
     return request.META.get('REMOTE_ADDR', '0.0.0.0')
+
+
+def safe_redirect_target(request, target_url, fallback='louis16_m:profile'):
+    if target_url and url_has_allowed_host_and_scheme(target_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return target_url
+    return fallback
 
 
 def get_login_attempt(username, ip_address):
@@ -100,7 +108,8 @@ def register_view(request):
 
 
 def login_view(request):
-    next_url = request.POST.get('next') or request.GET.get('next') or ''
+    raw_next = request.POST.get('next') or request.GET.get('next') or ''
+    next_url = safe_redirect_target(request, raw_next)
     ip_address = get_client_ip(request)
     username = request.POST.get('username', '').strip()
     attempt = get_login_attempt(username, ip_address) if username else None
@@ -120,7 +129,7 @@ def login_view(request):
                 record_failed_login(username, ip_address)
     else:
         form = AuthenticationForm()
-    return render(request, 'louis16_m/login.html', {'form': form, 'next': next_url})
+    return render(request, 'louis16_m/login.html', {'form': form, 'next': raw_next})
 
 
 def logout_view(request):
