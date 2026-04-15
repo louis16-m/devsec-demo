@@ -1,0 +1,8 @@
+<h2>Welcome, {{ user.username }}!</h2>
+<p>Status: Authenticated</p>
+<p>This is your private profile area.</p>
+<p><a href="{% url 'louis16_m:password_change' %}">Change Password</a></p>
+<form action="{% url 'louis16_m:logout' %}" method="post">
+    {% csrf_token %}
+    <button type="submit">Logout</button>
+</form>
