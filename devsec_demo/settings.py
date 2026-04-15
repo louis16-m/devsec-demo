@@ -25,11 +25,44 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError('DJANGO_SECRET_KEY environment variable must be set')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DJANGO_DEBUG')
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = []
+# Allowed hosts - must be explicitly configured
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS if host.strip()]
+
+# Security settings for production
+SECURE_SSL_REDIRECT = not DEBUG  # Redirect to HTTPS in production
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0  # 1 year HSTS in production
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
+
+# Secure cookies
+SESSION_COOKIE_SECURE = not DEBUG  # Only send session cookie over HTTPS
+CSRF_COOKIE_SECURE = not DEBUG  # Only send CSRF cookie over HTTPS
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to session cookie
+CSRF_COOKIE_HTTPONLY = True  # Prevent JavaScript access to CSRF cookie
+SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF protection
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# Content security
+SECURE_CONTENT_TYPE_NOSNIFF = True  # Prevent MIME type sniffing
+SECURE_BROWSER_XSS_FILTER = True  # Enable XSS filtering
+X_FRAME_OPTIONS = 'DENY'  # Prevent clickjacking
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
+# Additional security headers
+CSP_DEFAULT_SRC = ("'self'",)
+CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'")  # Allow inline scripts for now, but should be removed
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'")  # Allow inline styles for now
+
+# Additional security settings
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+SECURE_CROSS_ORIGIN_EMBEDDER_POLICY = 'require-corp' if not DEBUG else None
 
 
 # Application definition
@@ -125,7 +158,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
-ALLOWED_HOSTS = ['testserver', 'localhost', '127.0.0.1']
+# ALLOWED_HOSTS is now configured above via environment variable
 
 LOGIN_URL = 'louis16_m:login'
 LOGIN_REDIRECT_URL = 'louis16_m:profile'

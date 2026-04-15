@@ -55,4 +55,15 @@ External or untrusted redirect targets are rejected and users are sent to the de
 - Uploaded images are restricted by extension, MIME type, file size, and actual image validation.
 - Uploaded documents are restricted to verified PDF files with a file signature check.
 - Uploaded files are stored in user-scoped paths and served through authenticated request handlers.
+
+## Hardened Django Security Settings
+
+- **DEBUG**: Defaults to False, configurable via DJANGO_DEBUG environment variable.
+- **SECRET_KEY**: Required environment variable with no fallback to prevent insecure defaults.
+- **ALLOWED_HOSTS**: Configurable via DJANGO_ALLOWED_HOSTS environment variable.
+- **SSL/HTTPS**: SECURE_SSL_REDIRECT and HSTS enabled in production.
+- **Secure Cookies**: SESSION_COOKIE_SECURE, CSRF_COOKIE_SECURE, HTTPONLY, and SAMESITE settings.
+- **Content Security**: X_FRAME_OPTIONS='DENY', SECURE_CONTENT_TYPE_NOSNIFF, SECURE_BROWSER_XSS_FILTER.
+- **Cross-Origin Policies**: SECURE_CROSS_ORIGIN_OPENER_POLICY and EMBEDDER_POLICY configured.
+- **Referrer Policy**: SECURE_REFERRER_POLICY set to strict-origin-when-cross-origin.
 This prevents attackers from abusing login redirect flows to send users to malicious destinations.
