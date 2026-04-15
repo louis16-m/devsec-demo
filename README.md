@@ -38,6 +38,12 @@ The system logs registration, login success and failure, logout, password change
 Audit messages include non-sensitive fields such as event name, user identifier, request path, and source IP address.
 Raw passwords are never logged, and logging is intentionally limited to high-value events that support review and incident investigation.
 
+## Stored XSS Protection in Profile Content
+User-controlled profile fields are sanitized on input to prevent stored cross-site scripting attacks.
+The `update_profile_ajax` view strips HTML tags from the `first_name` field before saving to the database.
+This ensures that malicious scripts cannot be stored and later executed in other users' browsers when viewing profiles.
+Django's template auto-escaping provides additional defense-in-depth, but input sanitization prevents the storage of dangerous markup in the first place.
+
 ## Open Redirect Protection
 Authentication redirect targets are now validated before use.
 The login view accepts a `next` parameter only when it points to a safe internal URL on the same host.

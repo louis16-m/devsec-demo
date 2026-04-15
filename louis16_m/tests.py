@@ -321,3 +321,16 @@ class AuthTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data['status'], 'success')
+
+    def test_update_profile_ajax_strips_html_tags(self):
+        user = User.objects.create_user(username='testuser', password='testpass123')
+        self.client.login(username='testuser', password='testpass123')
+        response = self.client.post(reverse('louis16_m:update_profile_ajax'), {
+            'first_name': '<script>alert("XSS")</script>John'
+        })
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['status'], 'success')
+        self.assertEqual(data['first_name'], 'alert("XSS")John')  # Tags stripped
+        user.refresh_from_db()
+        self.assertEqual(user.first_name, 'alert("XSS")John')

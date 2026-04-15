@@ -12,7 +12,7 @@ from django.contrib.auth.models import Group, User
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from django.utils import timezone
+from django.utils.html import strip_tags
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from .models import LoginAttempt
@@ -239,7 +239,7 @@ def profile_detail_view(request, user_id):
 @login_required
 def update_profile_ajax(request):
     if request.method == 'POST':
-        first_name = request.POST.get('first_name', '').strip()
+        first_name = strip_tags(request.POST.get('first_name', '').strip())
         request.user.first_name = first_name
         request.user.save()
         return JsonResponse({'status': 'success', 'first_name': first_name})
