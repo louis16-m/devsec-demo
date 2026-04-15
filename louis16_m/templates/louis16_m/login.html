@@ -2,6 +2,9 @@
 <form method="POST">
     {% csrf_token %}
     {{ form.as_p }}
+    {% if next %}
+        <input type="hidden" name="next" value="{{ next }}">
+    {% endif %}
     <button type="submit">Login</button>
 </form>
 <p>Need an account? <a href="{% url 'louis16_m:register' %}">Register here</a></p>
