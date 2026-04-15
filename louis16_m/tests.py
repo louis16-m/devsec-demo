@@ -1,6 +1,10 @@
 
+import os
+import tempfile
+
 from django.core import mail
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.contrib.auth.models import Group, User
 from django.contrib.auth.tokens import default_token_generator
@@ -177,6 +181,72 @@ class AuthTests(TestCase):
         self.client.login(username='owner', password='testpass123')
         response = self.client.get(reverse('louis16_m:profile_detail', args=[user.id]))
         self.assertEqual(response.status_code, 200)
+
+    def test_profile_upload_accepts_valid_avatar_and_document(self):
+        user = User.objects.create_user(username='uploaduser', password='testpass123')
+        self.client.login(username='uploaduser', password='testpass123')
+        avatar = SimpleUploadedFile(
+            'avatar.gif',
+            b'GIF89a\x01\x00\x01\x00\x80\xff\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02L\x01\x00;',
+            content_type='image/gif'
+        )
+        document = SimpleUploadedFile(
+            'document.pdf',
+            b'%PDF-1.4\n%%EOF\n',
+            content_type='application/pdf'
+        )
+        with tempfile.TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                response = self.client.post(reverse('louis16_m:profile'), {
+                    'avatar': avatar,
+                    'document': document,
+                }, follow=True)
+                self.assertEqual(response.status_code, 200)
+                user.refresh_from_db()
+                self.assertTrue(hasattr(user, 'profile'))
+                self.assertTrue(user.profile.avatar.name.lower().endswith('.gif'))
+                self.assertTrue(user.profile.document.name.lower().endswith('.pdf'))
+
+    def test_profile_upload_rejects_unsafe_document(self):
+        user = User.objects.create_user(username='unsafeuser', password='testpass123')
+        self.client.login(username='unsafeuser', password='testpass123')
+        bad_document = SimpleUploadedFile(
+            'document.pdf',
+            b'NotAPDF',
+            content_type='application/pdf'
+        )
+        with tempfile.TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                response = self.client.post(reverse('louis16_m:profile'), {
+                    'document': bad_document,
+                })
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'Uploaded document is not a valid PDF file.')
+
+    def test_profile_file_download_is_protected(self):
+        from louis16_m.models import UserProfile
+
+        owner = User.objects.create_user(username='owner', password='testpass123')
+        other = User.objects.create_user(username='other', password='testpass123')
+        profile, _ = UserProfile.objects.get_or_create(user=owner)
+        with tempfile.TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                avatar = SimpleUploadedFile(
+                    'avatar.png',
+                    b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\nIDATx\x9cc`\x00\x00\x00\x02\x00\x01\xe2!\xbc\x33\x00\x00\x00\x00IEND\xaeB`\x82',
+                    content_type='image/png'
+                )
+                profile.avatar.save('avatar.jpg', avatar)
+                avatar.close()
+                self.client.login(username='other', password='testpass123')
+                response = self.client.get(reverse('louis16_m:serve_uploaded_file', args=[owner.id, 'avatar']))
+                self.assertEqual(response.status_code, 403)
+                response.close()
+                self.client.logout()
+                self.client.login(username='owner', password='testpass123')
+                response = self.client.get(reverse('louis16_m:serve_uploaded_file', args=[owner.id, 'avatar']))
+                self.assertEqual(response.status_code, 200)
+                response.close()
 
     def test_profile_detail_forbidden_for_other_user(self):
         owner = User.objects.create_user(username='owner', password='testpass123')

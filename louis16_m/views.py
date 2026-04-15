@@ -1,9 +1,12 @@
 import json
 import logging
+import mimetypes
+import os
 from functools import wraps
 from datetime import timedelta
 
-from django.http import JsonResponse
+from django import forms
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, PasswordChangeForm
@@ -14,8 +17,9 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.utils.html import strip_tags
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils import timezone
 
-from .models import LoginAttempt
+from .models import LoginAttempt, UserProfile
 
 ROLE_STANDARD = 'standard'
 ROLE_PRIVILEGED = 'privileged'
@@ -67,6 +71,17 @@ def audit_log(event, request=None, user=None, extra=None):
     if extra:
         data.update(extra)
     audit_logger.info(json.dumps({k: v for k, v in data.items() if v is not None}))
+
+
+class ProfileUploadForm(forms.ModelForm):
+    class Meta:
+        model = UserProfile
+        fields = ('avatar', 'document')
+
+
+def get_or_create_profile(user):
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    return profile
 
 
 def safe_redirect_target(request, target_url, fallback='louis16_m:profile'):
@@ -215,9 +230,25 @@ def privileged_dashboard_view(request):
 
 @login_required
 def profile_view(request):
+    profile = get_or_create_profile(request.user)
+    if request.method == 'POST':
+        form = ProfileUploadForm(request.POST, request.FILES, instance=profile)
+        if form.is_valid():
+            form.save()
+            audit_log('profile.upload.updated', request, request.user, {
+                'avatar_uploaded': bool(profile.avatar),
+                'document_uploaded': bool(profile.document),
+            })
+            messages.success(request, 'Your profile files were uploaded successfully.')
+            return redirect('louis16_m:profile')
+    else:
+        form = ProfileUploadForm(instance=profile)
+
     has_privileged_access = is_privileged(request.user)
     return render(request, 'louis16_m/profile.html', {
         'target_user': request.user,
+        'target_profile': profile,
+        'upload_form': form,
         'has_privileged_access': has_privileged_access,
         'is_own_profile': True,
     })
@@ -228,12 +259,40 @@ def profile_detail_view(request, user_id):
     target_user = get_object_or_404(User, pk=user_id)
     if request.user != target_user and not is_privileged(request.user):
         raise PermissionDenied
+    profile = get_or_create_profile(target_user)
     has_privileged_access = is_privileged(request.user)
     return render(request, 'louis16_m/profile.html', {
         'target_user': target_user,
+        'target_profile': profile,
+        'upload_form': None,
         'has_privileged_access': has_privileged_access,
         'is_own_profile': request.user == target_user,
     })
+
+
+@login_required
+def serve_uploaded_file(request, user_id, file_type):
+    if file_type not in {'avatar', 'document'}:
+        raise Http404
+    target_user = get_object_or_404(User, pk=user_id)
+    if request.user != target_user and not is_privileged(request.user):
+        raise PermissionDenied
+
+    profile = get_or_create_profile(target_user)
+    file_field = getattr(profile, file_type)
+    if not file_field:
+        raise Http404
+
+    try:
+        response = FileResponse(file_field.open('rb'), content_type=mimetypes.guess_type(file_field.name)[0] or 'application/octet-stream')
+    except FileNotFoundError:
+        raise Http404
+
+    if file_type == 'document':
+        response['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_field.name)}"'
+    else:
+        response['Content-Disposition'] = 'inline'
+    return response
 
 
 @login_required

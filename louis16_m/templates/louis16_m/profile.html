@@ -6,7 +6,43 @@
     <p>This is your private profile area.</p>
 {% endif %}
 <p>First Name: <span id="first_name">{{ target_user.first_name|default:"Not set" }}</span></p>
+
+{% if target_profile.avatar %}
+    <div>
+        <strong>Avatar:</strong><br>
+        <img src="{% url 'louis16_m:serve_uploaded_file' target_user.id 'avatar' %}" alt="Avatar" style="max-width:150px;max-height:150px;border:1px solid #ccc;" />
+    </div>
+{% endif %}
+
+{% if target_profile.document %}
+    <div>
+        <strong>Document:</strong>
+        <a href="{% url 'louis16_m:serve_uploaded_file' target_user.id 'document' %}">Download PDF</a>
+    </div>
+{% endif %}
+
 {% if is_own_profile %}
+    <h3>Upload avatar and document</h3>
+    <form action="" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ upload_form.non_field_errors }}
+        <div>
+            <label for="{{ upload_form.avatar.id_for_label }}">Avatar (JPEG/PNG/GIF, max 2MB)</label><br>
+            {{ upload_form.avatar }}
+            {% for error in upload_form.avatar.errors %}
+                <div class="error">{{ error }}</div>
+            {% endfor %}
+        </div>
+        <div>
+            <label for="{{ upload_form.document.id_for_label }}">Document (PDF, max 5MB)</label><br>
+            {{ upload_form.document }}
+            {% for error in upload_form.document.errors %}
+                <div class="error">{{ error }}</div>
+            {% endfor %}
+        </div>
+        <button type="submit">Upload files</button>
+    </form>
+
     <label for="first_name_input">Update First Name:</label>
     <input type="text" id="first_name_input" placeholder="Enter first name">
     <button onclick="updateFirstName()">Update</button>

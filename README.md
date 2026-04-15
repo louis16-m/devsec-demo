@@ -48,4 +48,11 @@ Django's template auto-escaping provides additional defense-in-depth, but input 
 Authentication redirect targets are now validated before use.
 The login view accepts a `next` parameter only when it points to a safe internal URL on the same host.
 External or untrusted redirect targets are rejected and users are sent to the default profile page instead.
+
+## Secure File Upload Handling
+
+- Avatar and document uploads are validated before acceptance.
+- Uploaded images are restricted by extension, MIME type, file size, and actual image validation.
+- Uploaded documents are restricted to verified PDF files with a file signature check.
+- Uploaded files are stored in user-scoped paths and served through authenticated request handlers.
 This prevents attackers from abusing login redirect flows to send users to malicious destinations.

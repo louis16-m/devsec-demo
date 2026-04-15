@@ -10,6 +10,7 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('profile/', views.profile_view, name='profile'),
     path('profile/<int:user_id>/', views.profile_detail_view, name='profile_detail'),
+    path('profile/<int:user_id>/files/<str:file_type>/', views.serve_uploaded_file, name='serve_uploaded_file'),
     path('password_change/', views.password_change_view, name='password_change'),
     path('password_change/done/', views.password_change_done_view, name='password_change_done'),
     path('password_reset/', views.AuditPasswordResetView.as_view(
