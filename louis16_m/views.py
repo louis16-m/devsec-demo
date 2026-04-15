@@ -1,7 +1,7 @@
 from functools import wraps
 from datetime import timedelta
 
-from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, PasswordChangeForm
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, User
@@ -174,3 +174,13 @@ def profile_detail_view(request, user_id):
         'has_privileged_access': has_privileged_access,
         'is_own_profile': request.user == target_user,
     })
+
+
+@login_required
+def update_profile_ajax(request):
+    if request.method == 'POST':
+        first_name = request.POST.get('first_name', '').strip()
+        request.user.first_name = first_name
+        request.user.save()
+        return JsonResponse({'status': 'success', 'first_name': first_name})
+    return JsonResponse({'status': 'error'}, status=400)

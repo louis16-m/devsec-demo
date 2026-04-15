@@ -25,3 +25,9 @@ The workflow also uses the local email backend for development and tests, and th
 Login is hardened with account- and IP-aware failed attempt tracking.
 After 5 failed attempts, the login route temporarily locks the account for 15 minutes and returns a generic cooldown message.
 Legitimate users can still log in normally if they use valid credentials before the threshold is reached, and the system resets the counter after a successful login.
+
+## CSRF Protection in AJAX Workflows
+Custom AJAX endpoints for state-changing operations must include CSRF tokens to prevent cross-site request forgery.
+The `update_profile_ajax` view updates user profile data via POST and requires a valid CSRF token in the `X-CSRFToken` header.
+The frontend JavaScript retrieves the CSRF token from the `csrftoken` cookie and includes it in AJAX requests.
+This ensures that even AJAX-driven forms are protected against CSRF attacks, maintaining the security of the application while preserving user experience.

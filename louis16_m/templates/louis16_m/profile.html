@@ -5,7 +5,11 @@
     <p>Status: Authenticated</p>
     <p>This is your private profile area.</p>
 {% endif %}
+<p>First Name: <span id="first_name">{{ target_user.first_name|default:"Not set" }}</span></p>
 {% if is_own_profile %}
+    <label for="first_name_input">Update First Name:</label>
+    <input type="text" id="first_name_input" placeholder="Enter first name">
+    <button onclick="updateFirstName()">Update</button>
     <p><a href="{% url 'louis16_m:password_change' %}">Change Password</a></p>
 {% endif %}
 {% if has_privileged_access %}
@@ -15,3 +19,42 @@
     {% csrf_token %}
     <button type="submit">Logout</button>
 </form>
+
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function updateFirstName() {
+    const firstName = document.getElementById('first_name_input').value;
+    const csrftoken = getCookie('csrftoken');
+    fetch('{% url "louis16_m:update_profile_ajax" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrftoken,
+        },
+        body: 'first_name=' + encodeURIComponent(firstName)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            document.getElementById('first_name').textContent = data.first_name;
+            document.getElementById('first_name_input').value = '';
+        } else {
+            alert('Error updating first name');
+        }
+    });
+}
+</script>

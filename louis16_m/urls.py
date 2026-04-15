@@ -33,5 +33,6 @@ urlpatterns = [
         template_name='louis16_m/password_reset_complete.html'
     ), name='password_reset_complete'),
     path('privileged/', views.privileged_dashboard_view, name='privileged_dashboard'),
+    path('update_profile_ajax/', views.update_profile_ajax, name='update_profile_ajax'),
 ]
 
