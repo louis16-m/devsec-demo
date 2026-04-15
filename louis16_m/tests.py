@@ -68,6 +68,14 @@ class AuthTests(TestCase):
         response = self.client.post(reverse('louis16_m:logout'))
         self.assertEqual(response.status_code, 302)  # Redirect after logout
 
+    def test_logout_logs_audit_event(self):
+        user = User.objects.create_user(username='testuser', password='testpass123')
+        self.client.login(username='testuser', password='testpass123')
+        with self.assertLogs('louis16_m.audit', level='INFO') as cm:
+            response = self.client.post(reverse('louis16_m:logout'))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(any('auth.logout' in message for message in cm.output))
+
     def test_password_change_requires_login(self):
         response = self.client.get(reverse('louis16_m:password_change'))
         self.assertEqual(response.status_code, 302)  # Redirect to login
@@ -93,6 +101,62 @@ class AuthTests(TestCase):
         self.client.login(username='testuser', password='testpass123')
         response = self.client.get(reverse('louis16_m:privileged_dashboard'))
         self.assertEqual(response.status_code, 403)
+
+    def test_registration_logs_audit_events(self):
+        with self.assertLogs('louis16_m.audit', level='INFO') as cm:
+            response = self.client.post(reverse('louis16_m:register'), {
+                'username': 'testuser',
+                'password1': 'testpass123',
+                'password2': 'testpass123'
+            })
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(any('auth.registration' in message for message in cm.output))
+        self.assertTrue(any('auth.role.assigned' in message for message in cm.output))
+
+    def test_login_success_logs_audit_event(self):
+        User.objects.create_user(username='testuser', password='testpass123')
+        with self.assertLogs('louis16_m.audit', level='INFO') as cm:
+            response = self.client.post(reverse('louis16_m:login'), {
+                'username': 'testuser',
+                'password': 'testpass123'
+            })
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(any('auth.login.success' in message for message in cm.output))
+
+    def test_login_failure_logs_audit_event(self):
+        with self.assertLogs('louis16_m.audit', level='INFO') as cm:
+            response = self.client.post(reverse('louis16_m:login'), {
+                'username': 'doesnotexist',
+                'password': 'wrongpass'
+            })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(any('auth.login.failure' in message for message in cm.output))
+
+    def test_password_reset_request_logs_audit_event(self):
+        user = User.objects.create_user(username='resetuser', email='reset@example.com', password='oldpass123')
+        with self.assertLogs('louis16_m.audit', level='INFO') as cm:
+            response = self.client.post(reverse('louis16_m:password_reset'), {
+                'email': 'reset@example.com'
+            })
+        self.assertRedirects(response, reverse('louis16_m:password_reset_done'))
+        self.assertTrue(any('auth.password_reset.requested' in message for message in cm.output))
+
+    def test_password_reset_complete_logs_audit_event(self):
+        user = User.objects.create_user(username='resetuser', email='reset@example.com', password='oldpass123')
+        response = self.client.post(reverse('louis16_m:password_reset'), {
+            'email': 'reset@example.com'
+        })
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        reset_url = reverse('louis16_m:password_reset_confirm', args=[uid, token])
+        response = self.client.get(reset_url)
+        post_url = getattr(response, 'url', reset_url) or reset_url
+        with self.assertLogs('louis16_m.audit', level='INFO') as cm:
+            response = self.client.post(post_url, {
+                'new_password1': 'newpass123',
+                'new_password2': 'newpass123'
+            })
+        self.assertTrue(any('auth.password_reset.completed' in message for message in cm.output))
 
     def test_privileged_dashboard_allowed_for_staff(self):
         user = User.objects.create_user(username='staffuser', password='testpass123', is_staff=True)

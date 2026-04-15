@@ -12,7 +12,7 @@ urlpatterns = [
     path('profile/<int:user_id>/', views.profile_detail_view, name='profile_detail'),
     path('password_change/', views.password_change_view, name='password_change'),
     path('password_change/done/', views.password_change_done_view, name='password_change_done'),
-    path('password_reset/', auth_views.PasswordResetView.as_view(
+    path('password_reset/', views.AuditPasswordResetView.as_view(
         template_name='louis16_m/password_reset_form.html',
         email_template_name='louis16_m/password_reset_email.html',
         subject_template_name='louis16_m/password_reset_subject.txt',
@@ -21,11 +21,11 @@ urlpatterns = [
     path('password_reset/done/', auth_views.PasswordResetDoneView.as_view(
         template_name='louis16_m/password_reset_done.html'
     ), name='password_reset_done'),
-    path('reset/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(
+    path('reset/<uidb64>/<token>/', views.AuditPasswordResetConfirmView.as_view(
         template_name='louis16_m/password_reset_confirm.html',
         success_url=reverse_lazy('louis16_m:password_reset_complete')
     ), name='password_reset_confirm'),
-    path('reset/<uidb64>/<token>/set-password/', auth_views.PasswordResetConfirmView.as_view(
+    path('reset/<uidb64>/<token>/set-password/', views.AuditPasswordResetConfirmView.as_view(
         template_name='louis16_m/password_reset_confirm.html',
         success_url=reverse_lazy('louis16_m:password_reset_complete')
     )),

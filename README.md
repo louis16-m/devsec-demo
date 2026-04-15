@@ -32,6 +32,12 @@ The `update_profile_ajax` view updates user profile data via POST and requires a
 The frontend JavaScript retrieves the CSRF token from the `csrftoken` cookie and includes it in AJAX requests.
 This ensures that even AJAX-driven forms are protected against CSRF attacks, maintaining the security of the application while preserving user experience.
 
+## Audit Logging for Authentication Events
+Security-relevant authentication events are now recorded using app-level audit logging.
+The system logs registration, login success and failure, logout, password changes, password reset requests, and password reset completions.
+Audit messages include non-sensitive fields such as event name, user identifier, request path, and source IP address.
+Raw passwords are never logged, and logging is intentionally limited to high-value events that support review and incident investigation.
+
 ## Open Redirect Protection
 Authentication redirect targets are now validated before use.
 The login view accepts a `next` parameter only when it points to a safe internal URL on the same host.

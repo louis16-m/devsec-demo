@@ -1,8 +1,11 @@
+import json
+import logging
 from functools import wraps
 from datetime import timedelta
 
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, PasswordChangeForm
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, User
@@ -48,6 +51,22 @@ def get_client_ip(request):
     if forwarded:
         return forwarded.split(',')[0].strip()
     return request.META.get('REMOTE_ADDR', '0.0.0.0')
+
+
+audit_logger = logging.getLogger('louis16_m.audit')
+
+
+def audit_log(event, request=None, user=None, extra=None):
+    data = {
+        'event': event,
+        'ip_address': get_client_ip(request) if request else None,
+        'path': request.path if request else None,
+    }
+    if user is not None:
+        data.update({'user_id': user.id, 'username': user.username})
+    if extra:
+        data.update(extra)
+    audit_logger.info(json.dumps({k: v for k, v in data.items() if v is not None}))
 
 
 def safe_redirect_target(request, target_url, fallback='louis16_m:profile'):
@@ -100,6 +119,8 @@ def register_view(request):
             user = form.save()
             standard_group, _ = ensure_role_groups()
             user.groups.add(standard_group)
+            audit_log('auth.registration', request, user, {'assigned_role': ROLE_STANDARD})
+            audit_log('auth.role.assigned', request, user, {'assigned_role': ROLE_STANDARD})
             messages.success(request, 'Account created successfully! You can now log in.')
             return redirect('louis16_m:login')
     else:
@@ -122,20 +143,49 @@ def login_view(request):
             user = form.get_user()
             login(request, user)
             reset_login_attempt(username, ip_address)
+            audit_log('auth.login.success', request, user, {
+                'redirect_target': raw_next,
+                'redirect_used': next_url or 'louis16_m:profile'
+            })
             messages.success(request, f'Welcome back, {user.username}!')
             return redirect(next_url or 'louis16_m:profile')
         else:
             if username:
                 record_failed_login(username, ip_address)
+                audit_log('auth.login.failure', request, None, {'attempted_username': username})
     else:
         form = AuthenticationForm()
     return render(request, 'louis16_m/login.html', {'form': form, 'next': raw_next})
 
 
 def logout_view(request):
+    user = request.user if request.user.is_authenticated else None
+    audit_log('auth.logout', request, user)
     logout(request)
     messages.info(request, 'You have been logged out.')
     return redirect('louis16_m:login')
+
+
+class AuditPasswordResetView(auth_views.PasswordResetView):
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        user = None
+        email = form.cleaned_data.get('email')
+        if email:
+            user = User.objects.filter(email=email).first()
+        audit_log('auth.password_reset.requested', self.request, user, {
+            'email': email,
+            'user_exists': bool(user)
+        })
+        return response
+
+
+class AuditPasswordResetConfirmView(auth_views.PasswordResetConfirmView):
+    def form_valid(self, form):
+        user = form.user
+        response = super().form_valid(form)
+        audit_log('auth.password_reset.completed', self.request, user)
+        return response
 
 
 @login_required
@@ -145,6 +195,7 @@ def password_change_view(request):
         if form.is_valid():
             user = form.save()
             update_session_auth_hash(request, user)  # Keep user logged in
+            audit_log('auth.password_change', request, user)
             messages.success(request, 'Your password was successfully updated!')
             return redirect('louis16_m:password_change_done')
     else:
