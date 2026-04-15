@@ -1,7 +1,11 @@
 
+from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth.models import Group, User
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 
 class AuthTests(TestCase):
     def test_register_view_status_code(self):
@@ -105,3 +109,56 @@ class AuthTests(TestCase):
         self.client.login(username='privileged', password='testpass123')
         response = self.client.get(reverse('louis16_m:profile_detail', args=[owner.id]))
         self.assertEqual(response.status_code, 200)
+
+    def test_password_reset_request_nonexistent_email_does_not_leak(self):
+        response = self.client.post(reverse('louis16_m:password_reset'), {
+            'email': 'unknown@example.com'
+        })
+        self.assertRedirects(response, reverse('louis16_m:password_reset_done'))
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_password_reset_request_sends_email_for_existing_user(self):
+        user = User.objects.create_user(username='resetuser', email='reset@example.com', password='oldpass123')
+        response = self.client.post(reverse('louis16_m:password_reset'), {
+            'email': 'reset@example.com'
+        })
+        self.assertRedirects(response, reverse('louis16_m:password_reset_done'))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('reset', mail.outbox[0].subject.lower())
+
+    def test_password_reset_confirm_allows_new_password(self):
+        user = User.objects.create_user(username='resetuser', email='reset@example.com', password='oldpass123')
+        response = self.client.post(reverse('louis16_m:password_reset'), {
+            'email': 'reset@example.com'
+        })
+        self.assertRedirects(response, reverse('louis16_m:password_reset_done'))
+        message = mail.outbox[0].body
+        self.assertIn('/auth/reset/', message)
+
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        reset_url = reverse('louis16_m:password_reset_confirm', args=[uid, token])
+        response = self.client.get(reset_url, follow=True)
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.post(response.request['PATH_INFO'], {
+            'new_password1': 'newpass123',
+            'new_password2': 'newpass123'
+        }, follow=True)
+        self.assertRedirects(response, reverse('louis16_m:password_reset_complete'))
+        user.refresh_from_db()
+        self.assertTrue(user.check_password('newpass123'))
+
+    def test_password_reset_confirm_invalid_token_is_safe(self):
+        user = User.objects.create_user(username='resetuser', email='reset@example.com', password='oldpass123')
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        invalid_url = reverse('louis16_m:password_reset_confirm', args=[uid, 'invalid-token'])
+        response = self.client.get(invalid_url, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context['validlink'])
+        response = self.client.post(response.request['PATH_INFO'], {
+            'new_password1': 'newpass123',
+            'new_password2': 'newpass123'
+        }, follow=True)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password('oldpass123'))

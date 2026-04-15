@@ -15,3 +15,8 @@ Unauthorized access is handled safely by either redirecting anonymous users to l
 Profile access now uses explicit object-level access control when a route receives a user identifier.
 The `profile/<int:user_id>/` route looks up the target user and verifies that the current user either owns that profile or is privileged.
 If the user is authenticated but not authorized, the view raises HTTP 403 rather than leaking whether the profile exists.
+
+## Secure Password Reset
+Password reset uses Django's built-in `PasswordResetView` and related views, which provide secure token-based reset links and avoid custom token schemes.
+The reset request page returns a generic success response regardless of whether the email exists, preventing account enumeration.
+The workflow also uses the local email backend for development and tests, and the reset token validation respects Django's built-in security rules.

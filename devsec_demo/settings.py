@@ -122,6 +122,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+ALLOWED_HOSTS = ['testserver', 'localhost', '127.0.0.1']
+
 LOGIN_URL = 'louis16_m:login'
 LOGIN_REDIRECT_URL = 'louis16_m:profile'
 LOGOUT_REDIRECT_URL = 'louis16_m:login'
