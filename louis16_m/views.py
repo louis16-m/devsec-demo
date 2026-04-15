@@ -1,4 +1,5 @@
 from functools import wraps
+from datetime import timedelta
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, PasswordChangeForm
@@ -7,9 +8,14 @@ from django.contrib.auth.models import Group, User
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.utils import timezone
+
+from .models import LoginAttempt
 
 ROLE_STANDARD = 'standard'
 ROLE_PRIVILEGED = 'privileged'
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_PERIOD = timedelta(minutes=15)
 
 
 def ensure_role_groups():
@@ -35,6 +41,50 @@ def privileged_required(view_func):
     return _wrapped_view
 
 
+def get_client_ip(request):
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', '0.0.0.0')
+
+
+def get_login_attempt(username, ip_address):
+    return LoginAttempt.objects.filter(username=username, ip_address=ip_address).first()
+
+
+def create_login_attempt(username, ip_address):
+    return LoginAttempt.objects.create(username=username, ip_address=ip_address)
+
+
+def record_failed_login(username, ip_address):
+    attempt = get_login_attempt(username, ip_address)
+    if attempt is None:
+        attempt = create_login_attempt(username, ip_address)
+    attempt.failed_attempts += 1
+    attempt.last_failed_at = timezone.now()
+    if attempt.failed_attempts >= MAX_LOGIN_ATTEMPTS:
+        attempt.lock(LOCKOUT_PERIOD)
+    else:
+        attempt.save()
+    return attempt
+
+
+def reset_login_attempt(username, ip_address):
+    attempt = get_login_attempt(username, ip_address)
+    if attempt is not None:
+        attempt.reset()
+
+
+def lockout_message(attempt):
+    if attempt and attempt.is_locked():
+        remaining = int((attempt.locked_until - timezone.now()).total_seconds() // 60) + 1
+        return (
+            'Too many failed login attempts. Your account is temporarily locked. '
+            f'Please try again in {remaining} minute(s).'
+        )
+    return ''
+
+
 def register_view(request):
     if request.method == 'POST':
         form = UserCreationForm(request.POST)
@@ -51,13 +101,23 @@ def register_view(request):
 
 def login_view(request):
     next_url = request.POST.get('next') or request.GET.get('next') or ''
+    ip_address = get_client_ip(request)
+    username = request.POST.get('username', '').strip()
+    attempt = get_login_attempt(username, ip_address) if username else None
+
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
-        if form.is_valid():
+        if attempt and attempt.is_locked():
+            form.add_error(None, lockout_message(attempt))
+        elif form.is_valid():
             user = form.get_user()
             login(request, user)
+            reset_login_attempt(username, ip_address)
             messages.success(request, f'Welcome back, {user.username}!')
             return redirect(next_url or 'louis16_m:profile')
+        else:
+            if username:
+                record_failed_login(username, ip_address)
     else:
         form = AuthenticationForm()
     return render(request, 'louis16_m/login.html', {'form': form, 'next': next_url})

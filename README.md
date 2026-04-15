@@ -20,3 +20,8 @@ If the user is authenticated but not authorized, the view raises HTTP 403 rather
 Password reset uses Django's built-in `PasswordResetView` and related views, which provide secure token-based reset links and avoid custom token schemes.
 The reset request page returns a generic success response regardless of whether the email exists, preventing account enumeration.
 The workflow also uses the local email backend for development and tests, and the reset token validation respects Django's built-in security rules.
+
+## Login Bruteforce Protection
+Login is hardened with account- and IP-aware failed attempt tracking.
+After 5 failed attempts, the login route temporarily locks the account for 15 minutes and returns a generic cooldown message.
+Legitimate users can still log in normally if they use valid credentials before the threshold is reached, and the system resets the counter after a successful login.

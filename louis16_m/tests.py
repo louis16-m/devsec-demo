@@ -110,6 +110,51 @@ class AuthTests(TestCase):
         response = self.client.get(reverse('louis16_m:profile_detail', args=[owner.id]))
         self.assertEqual(response.status_code, 200)
 
+    def test_login_lockout_after_repeated_failed_attempts(self):
+        username = 'abuseuser'
+        User.objects.create_user(username=username, password='correctpass')
+        for _ in range(5):
+            response = self.client.post(reverse('louis16_m:login'), {
+                'username': username,
+                'password': 'wrongpass'
+            })
+            self.assertEqual(response.status_code, 200)
+        response = self.client.post(reverse('louis16_m:login'), {
+            'username': username,
+            'password': 'wrongpass'
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Too many failed login attempts')
+
+    def test_successful_login_resets_failed_attempts(self):
+        username = 'recoveruser'
+        User.objects.create_user(username=username, password='correctpass')
+        response = self.client.post(reverse('louis16_m:login'), {
+            'username': username,
+            'password': 'wrongpass'
+        })
+        self.assertEqual(response.status_code, 200)
+        response = self.client.post(reverse('louis16_m:login'), {
+            'username': username,
+            'password': 'correctpass'
+        })
+        self.assertEqual(response.status_code, 302)
+
+    def test_login_lockout_is_account_based(self):
+        User.objects.create_user(username='target', password='correctpass')
+        User.objects.create_user(username='other', password='correctpass')
+        for _ in range(6):
+            response = self.client.post(reverse('louis16_m:login'), {
+                'username': 'target',
+                'password': 'wrongpass'
+            })
+        self.assertContains(response, 'Too many failed login attempts')
+        response = self.client.post(reverse('louis16_m:login'), {
+            'username': 'other',
+            'password': 'correctpass'
+        })
+        self.assertEqual(response.status_code, 302)
+
     def test_password_reset_request_nonexistent_email_does_not_leak(self):
         response = self.client.post(reverse('louis16_m:password_reset'), {
             'email': 'unknown@example.com'
