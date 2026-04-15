@@ -10,3 +10,8 @@ Roles:
 - privileged users: staff or group members in `privileged`; may access the privileged dashboard
 
 Unauthorized access is handled safely by either redirecting anonymous users to login or returning HTTP 403 for authenticated users without permission.
+
+## Preventing IDOR in Profile Access
+Profile access now uses explicit object-level access control when a route receives a user identifier.
+The `profile/<int:user_id>/` route looks up the target user and verifies that the current user either owns that profile or is privileged.
+If the user is authenticated but not authorized, the view raises HTTP 403 rather than leaking whether the profile exists.

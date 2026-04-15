@@ -1,9 +1,9 @@
 from functools import wraps
 
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, PasswordChangeForm
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, User
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
@@ -97,5 +97,20 @@ def privileged_dashboard_view(request):
 def profile_view(request):
     has_privileged_access = is_privileged(request.user)
     return render(request, 'louis16_m/profile.html', {
+        'target_user': request.user,
         'has_privileged_access': has_privileged_access,
+        'is_own_profile': True,
+    })
+
+
+@login_required
+def profile_detail_view(request, user_id):
+    target_user = get_object_or_404(User, pk=user_id)
+    if request.user != target_user and not is_privileged(request.user):
+        raise PermissionDenied
+    has_privileged_access = is_privileged(request.user)
+    return render(request, 'louis16_m/profile.html', {
+        'target_user': target_user,
+        'has_privileged_access': has_privileged_access,
+        'is_own_profile': request.user == target_user,
     })

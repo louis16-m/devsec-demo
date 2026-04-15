@@ -85,3 +85,23 @@ class AuthTests(TestCase):
         self.client.login(username='privilegeduser', password='testpass123')
         response = self.client.get(reverse('louis16_m:privileged_dashboard'))
         self.assertEqual(response.status_code, 200)
+
+    def test_profile_detail_allowed_for_owner(self):
+        user = User.objects.create_user(username='owner', password='testpass123')
+        self.client.login(username='owner', password='testpass123')
+        response = self.client.get(reverse('louis16_m:profile_detail', args=[user.id]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_profile_detail_forbidden_for_other_user(self):
+        owner = User.objects.create_user(username='owner', password='testpass123')
+        other = User.objects.create_user(username='other', password='testpass123')
+        self.client.login(username='other', password='testpass123')
+        response = self.client.get(reverse('louis16_m:profile_detail', args=[owner.id]))
+        self.assertEqual(response.status_code, 403)
+
+    def test_profile_detail_allowed_for_privileged_user(self):
+        owner = User.objects.create_user(username='owner', password='testpass123')
+        privileged = User.objects.create_user(username='privileged', password='testpass123', is_staff=True)
+        self.client.login(username='privileged', password='testpass123')
+        response = self.client.get(reverse('louis16_m:profile_detail', args=[owner.id]))
+        self.assertEqual(response.status_code, 200)
