@@ -35,7 +35,7 @@ class AuthTests(TestCase):
         self.assertEqual(response.status_code, 302)  # Redirect after login
 
     def test_login_redirects_to_internal_next(self):
-        user = User.objects.create_user(username='testuser', password='testpass123')
+        User.objects.create_user(username='testuser', password='testpass123')
         self.client.login(username='testuser', password='testpass123')
         target = reverse('louis16_m:profile')
         response = self.client.post(reverse('louis16_m:login') + f'?next={target}', {
@@ -69,7 +69,7 @@ class AuthTests(TestCase):
         self.assertEqual(response.status_code, 302)  # Redirect after logout
 
     def test_logout_logs_audit_event(self):
-        user = User.objects.create_user(username='testuser', password='testpass123')
+        User.objects.create_user(username='testuser', password='testpass123')
         self.client.login(username='testuser', password='testpass123')
         with self.assertLogs('louis16_m.audit', level='INFO') as cm:
             response = self.client.post(reverse('louis16_m:logout'))
@@ -97,7 +97,7 @@ class AuthTests(TestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_privileged_dashboard_forbidden_for_standard_user(self):
-        user = User.objects.create_user(username='testuser', password='testpass123')
+        User.objects.create_user(username='testuser', password='testpass123')
         self.client.login(username='testuser', password='testpass123')
         response = self.client.get(reverse('louis16_m:privileged_dashboard'))
         self.assertEqual(response.status_code, 403)
@@ -133,7 +133,7 @@ class AuthTests(TestCase):
         self.assertTrue(any('auth.login.failure' in message for message in cm.output))
 
     def test_password_reset_request_logs_audit_event(self):
-        user = User.objects.create_user(username='resetuser', email='reset@example.com', password='oldpass123')
+        User.objects.create_user(username='resetuser', email='reset@example.com', password='oldpass123')
         with self.assertLogs('louis16_m.audit', level='INFO') as cm:
             response = self.client.post(reverse('louis16_m:password_reset'), {
                 'email': 'reset@example.com'
@@ -159,7 +159,7 @@ class AuthTests(TestCase):
         self.assertTrue(any('auth.password_reset.completed' in message for message in cm.output))
 
     def test_privileged_dashboard_allowed_for_staff(self):
-        user = User.objects.create_user(username='staffuser', password='testpass123', is_staff=True)
+        User.objects.create_user(username='staffuser', password='testpass123', is_staff=True)
         self.client.login(username='staffuser', password='testpass123')
         response = self.client.get(reverse('louis16_m:privileged_dashboard'))
         self.assertEqual(response.status_code, 200)
@@ -180,14 +180,14 @@ class AuthTests(TestCase):
 
     def test_profile_detail_forbidden_for_other_user(self):
         owner = User.objects.create_user(username='owner', password='testpass123')
-        other = User.objects.create_user(username='other', password='testpass123')
+        User.objects.create_user(username='other', password='testpass123')
         self.client.login(username='other', password='testpass123')
         response = self.client.get(reverse('louis16_m:profile_detail', args=[owner.id]))
         self.assertEqual(response.status_code, 403)
 
     def test_profile_detail_allowed_for_privileged_user(self):
         owner = User.objects.create_user(username='owner', password='testpass123')
-        privileged = User.objects.create_user(username='privileged', password='testpass123', is_staff=True)
+        User.objects.create_user(username='privileged', password='testpass123', is_staff=True)
         self.client.login(username='privileged', password='testpass123')
         response = self.client.get(reverse('louis16_m:profile_detail', args=[owner.id]))
         self.assertEqual(response.status_code, 200)
@@ -245,7 +245,7 @@ class AuthTests(TestCase):
         self.assertEqual(len(mail.outbox), 0)
 
     def test_password_reset_request_sends_email_for_existing_user(self):
-        user = User.objects.create_user(username='resetuser', email='reset@example.com', password='oldpass123')
+        User.objects.create_user(username='resetuser', email='reset@example.com', password='oldpass123')
         response = self.client.post(reverse('louis16_m:password_reset'), {
             'email': 'reset@example.com'
         })
@@ -313,7 +313,7 @@ class AuthTests(TestCase):
         # CSRF protection is demonstrated by the success test, as the AJAX request includes the token
         # and the view requires it for POST requests. Without the token, the request would fail with 403.
         # This test ensures the functionality works with CSRF protection in place.
-        user = User.objects.create_user(username='testuser', password='testpass123')
+        User.objects.create_user(username='testuser', password='testpass123')
         self.client.login(username='testuser', password='testpass123')
         response = self.client.post(reverse('louis16_m:update_profile_ajax'), {
             'first_name': 'UpdatedName'
