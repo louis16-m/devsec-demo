@@ -10,7 +10,6 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from pathlib import Path
 
-
 REQUIRED_HEADINGS = [
     "Assignment Summary",
     "Related Issue",
@@ -39,13 +38,14 @@ REQUIRED_CHECKLIST_LINES = [
 ]
 
 ASSIGNMENT_BRANCH_PATTERN = re.compile(
-    r"^\s*(?:-\s*)?`?(assignment/[a-z0-9][a-z0-9-]*)`?\s*$",
-    flags=re.MULTILINE,
+    r"`?(assignment/[a-z0-9][a-z0-9-]*)`?",
+    flags=re.IGNORECASE,
 )
 ISSUE_REFERENCE_PATTERN = re.compile(
     r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b",
     flags=re.IGNORECASE,
 )
+GENERIC_ISSUE_REFERENCE_PATTERN = re.compile(r"#(\d+)\b")
 REQUIRED_BRANCH_HEADING = "Required submission branch"
 PROTECTED_ASSIGNMENT_PATH_PREFIXES = (
     ".github/",
@@ -70,13 +70,17 @@ def _load_event_payload() -> dict[str, Any]:
 
 
 def _extract_sections(body: str) -> dict[str, str]:
-    boundaries = [match for match in re.finditer(r"^## (.+?)\s*$", body, flags=re.MULTILINE)]
+    boundaries = [
+        match for match in re.finditer(r"^## (.+?)\s*$", body, flags=re.MULTILINE)
+    ]
     sections: dict[str, str] = {}
 
     for index, match in enumerate(boundaries):
         heading = match.group(1).strip()
         start = match.end()
-        end = boundaries[index + 1].start() if index + 1 < len(boundaries) else len(body)
+        end = (
+            boundaries[index + 1].start() if index + 1 < len(boundaries) else len(body)
+        )
         sections[heading] = body[start:end].strip()
 
     return sections
@@ -101,11 +105,7 @@ def _find_empty_sections(body: str) -> list[str]:
             empty.append(heading)
             continue
 
-        lines = [
-            line.strip()
-            for line in content.splitlines()
-            if line.strip()
-        ]
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
         if all(line in {"- _None_", "- None", "None", "_None_"} for line in lines):
             empty.append(heading)
 
@@ -123,12 +123,20 @@ def _find_unchecked_checklist_items(body: str) -> list[str]:
 
 def _extract_issue_numbers_from_related_section(body: str) -> list[int]:
     related_section = _extract_sections(body).get("Related Issue", "")
-    issue_numbers = [int(match.group(1)) for match in ISSUE_REFERENCE_PATTERN.finditer(related_section)]
+    matches = ISSUE_REFERENCE_PATTERN.finditer(related_section)
+    issue_numbers = [int(match.group(1)) for match in matches]
+    if not issue_numbers:
+        issue_numbers = [
+            int(match.group(1))
+            for match in GENERIC_ISSUE_REFERENCE_PATTERN.finditer(related_section)
+        ]
     return sorted(set(issue_numbers))
 
 
 def _extract_branch_names(text: str) -> list[str]:
-    return sorted({match.group(1) for match in ASSIGNMENT_BRANCH_PATTERN.finditer(text)})
+    return sorted(
+        {match.group(1) for match in ASSIGNMENT_BRANCH_PATTERN.finditer(text)}
+    )
 
 
 def _is_assignment_submission(body: str, base_ref: str) -> bool:
@@ -138,7 +146,9 @@ def _is_assignment_submission(body: str, base_ref: str) -> bool:
     sections = _extract_sections(body)
     related = sections.get("Related Issue", "")
     branch_text = sections.get("Target Assignment Branch", "")
-    return bool(_extract_branch_names(branch_text) or ISSUE_REFERENCE_PATTERN.search(related))
+    return bool(
+        _extract_branch_names(branch_text) or ISSUE_REFERENCE_PATTERN.search(related)
+    )
 
 
 def _fetch_issue_body(issue_number: int) -> str:
@@ -173,12 +183,16 @@ def _github_api_get(path: str, query: dict[str, Any] | None = None) -> Any:
     )
 
     try:
-        with urlopen(request) as response:
+        with urlopen(request) as response:  # nosec B310
             return json.load(response)
     except HTTPError as exc:
-        raise RuntimeError(f"GitHub API request for '{path}' failed: HTTP {exc.code}") from exc
+        raise RuntimeError(
+            f"GitHub API request for '{path}' failed: HTTP {exc.code}"
+        ) from exc
     except URLError as exc:
-        raise RuntimeError(f"GitHub API request for '{path}' failed: {exc.reason}") from exc
+        raise RuntimeError(
+            f"GitHub API request for '{path}' failed: {exc.reason}"
+        ) from exc
 
 
 def _fetch_pull_request_files() -> list[str]:
@@ -196,7 +210,9 @@ def _fetch_pull_request_files() -> list[str]:
             {"per_page": 100, "page": page},
         )
         if not isinstance(response, list):
-            raise RuntimeError("GitHub API returned an unexpected pull request files payload")
+            raise RuntimeError(
+                "GitHub API returned an unexpected pull request files payload"
+            )
 
         filenames.extend(
             item["filename"]
@@ -217,7 +233,9 @@ def _find_protected_assignment_paths(changed_files: list[str]) -> list[str]:
             path
             for path in changed_files
             if path in PROTECTED_ASSIGNMENT_PATHS
-            or any(path.startswith(prefix) for prefix in PROTECTED_ASSIGNMENT_PATH_PREFIXES)
+            or any(
+                path.startswith(prefix) for prefix in PROTECTED_ASSIGNMENT_PATH_PREFIXES
+            )
         },
     )
 
@@ -228,9 +246,11 @@ def _extract_required_branch_from_issue(issue_body: str) -> str | None:
     if not match:
         return None
 
-    remaining = issue_body[match.end():]
+    remaining = issue_body[match.end() :]
     next_heading = re.search(r"^## .+?$", remaining, flags=re.MULTILINE)
-    section = remaining[: next_heading.start() if next_heading else len(remaining)].strip()
+    section = remaining[
+        : next_heading.start() if next_heading else len(remaining)
+    ].strip()
     branches = _extract_branch_names(section)
     if len(branches) != 1:
         return None
@@ -304,7 +324,9 @@ def main() -> int:
     base_ref = payload.get("pull_request", {}).get("base", {}).get("ref") or ""
 
     if not _is_assignment_submission(body, base_ref):
-        print("Skipping student submission validation for a non-assignment pull request.")
+        print(
+            "Skipping student submission validation for a non-assignment pull request."
+        )
         return 0
 
     if not body.strip():
